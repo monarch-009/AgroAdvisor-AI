@@ -14,11 +14,14 @@ import pickle
 import numpy as np
 from pathlib import Path
 
-# Add project root to path for imports
-BASE_DIR = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(BASE_DIR))
+# ── Paths ──────────────────────────────────────────────────────────────────
+# Using absolute paths to avoid Windows environment issues
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
+MODELS_DIR = os.path.join(PROJECT_ROOT, "models")
 
-MODELS_DIR = BASE_DIR / "models"
+print(f"[DEBUG] Backend Dir: {BACKEND_DIR}")
+print(f"[DEBUG] Models Dir: {MODELS_DIR}")
 
 
 # ── Model caches ────────────────────────────────────────────────────────────
@@ -47,33 +50,44 @@ def load_disease_model():
     """Load the disease detection model and class info."""
     global _disease_model, _disease_info
 
-    classes_path = MODELS_DIR / "disease_classes.json"
-    model_path = MODELS_DIR / "plant_disease_model.h5"
+    classes_path = os.path.join(MODELS_DIR, "disease_classes.json")
+    model_path = os.path.join(MODELS_DIR, "plant_disease_model.pth")
 
-    if _disease_info is not None:
+    if _disease_info is not None and _disease_model is not None:
         return _disease_model, _disease_info
 
-    if classes_path.exists():
-        with open(classes_path, "r") as f:
-            _disease_info = json.load(f)
-    else:
-        _disease_info = {
-            "classes": ["Unknown"],
-            "treatments": {},
-            "mode": "unavailable",
-        }
-        return None, _disease_info
-
-    if model_path.exists():
+    # 1. Load classes
+    if os.path.exists(classes_path):
         try:
-            os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-            import tensorflow as tf
-            _disease_model = tf.keras.models.load_model(str(model_path))
-            print(f"[MODEL] Loaded disease detection model from {model_path.name}")
-        except (ImportError, Exception) as e:
-            print(f"[WARN] Could not load disease model: {e}")
+            with open(classes_path, "r") as f:
+                _disease_info = json.load(f)
+            print(f"✅ [MODEL] Loaded classes from {classes_path}")
+        except Exception as e:
+            print(f"❌ [ERROR] Failed to load classes JSON: {e}")
+            _disease_info = {"classes": ["Unknown"], "treatments": {}, "mode": "error"}
+    else:
+        print(f"⚠️ [WARN] Classes file not found at: {classes_path}")
+        _disease_info = {"classes": ["Unknown"], "treatments": {}, "mode": "unavailable"}
+
+    # 2. Load weights
+    if os.path.exists(model_path):
+        try:
+            import torch
+            from pytorch_model import CNN_NeuralNet
+            
+            num_classes = len(_disease_info.get("classes", []))
+            _disease_model = CNN_NeuralNet(3, num_classes)
+            
+            # Load weights (CPU mapping)
+            state_dict = torch.load(model_path, map_location=torch.device('cpu'))
+            _disease_model.load_state_dict(state_dict)
+            _disease_model.eval()
+            print(f"✅ [SUCCESS] Loaded Disease Model: {os.path.basename(model_path)}")
+        except Exception as e:
+            print(f"❌ [ERROR] Model load failed: {e}")
             _disease_model = None
     else:
+        print(f"⚠️ [WARN] Weights file not found at: {model_path}")
         _disease_model = None
 
     return _disease_model, _disease_info
@@ -154,27 +168,36 @@ def detect_disease(image_bytes: bytes) -> dict:
 
     if model is not None:
         try:
-            import tensorflow as tf
+            import torch
+            import torchvision.transforms as transforms
             from PIL import Image
             import io
 
             img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-            img = img.resize((224, 224))
-            img_array = np.array(img) / 255.0
-            img_array = np.expand_dims(img_array, axis=0)
+            transform = transforms.Compose([
+                transforms.Resize((256, 256)),
+                transforms.ToTensor()
+            ])
+            img_tensor = transform(img).unsqueeze(0)
 
-            predictions = model.predict(img_array, verbose=0)[0]
-            pred_idx = int(np.argmax(predictions))
-            confidence = float(predictions[pred_idx])
+            with torch.no_grad():
+                predictions = model(img_tensor)
+                probabilities = torch.nn.functional.softmax(predictions[0], dim=0)
+                pred_idx = torch.argmax(probabilities).item()
+                confidence = float(probabilities[pred_idx].item())
+                
             disease = classes[pred_idx] if pred_idx < len(classes) else "Unknown"
+            print(f"[INFERENCE] Predicted: {disease} (Confidence: {confidence:.2%})")
         except Exception as e:
-            print(f"[WARN] Disease prediction error: {e}")
+            print(f"❌ [INFERENCE ERROR] {e}")
+            # Actual fallback if prediction fails
             disease = "Tomato___Early_blight"
-            confidence = 0.75
+            confidence = 0.50
     else:
-        # Fallback when model is unavailable
+        # Static fallback only if model is completely missing
+        print("[WARN] Model not loaded. Using static fallback.")
         disease = "Tomato___Early_blight"
-        confidence = 0.85
+        confidence = 0.0
 
     is_healthy = "healthy" in disease.lower()
     clean_name = disease.replace("___", " — ").replace("_", " ")

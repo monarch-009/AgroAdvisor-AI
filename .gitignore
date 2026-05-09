@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+.ipynb_checkpoints/
+
+# Node/React
+node_modules/
+dist/
+build/
+.DS_Store
+
+# Large Data & Datasets
+# (We keep the trained .pth files, but ignore the 3GB raw images)
+plant_dataset/
+Kaggel_model/
+*.zip
+*.tar.gz
+
+# Local models (Optional: decide if you want to keep trained models on Git)
+# Many people keep .pth files on Git if they are < 100MB.
+# If they are larger, you'd use Git LFS.
+!models/plant_disease_model.pth
+!models/crop_recommendation_model.pkl
+!models/disease_classes.json
+
+# Logs and OS files
+*.log
+Thumbs.db
+desktop.ini

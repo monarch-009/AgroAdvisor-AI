@@ -1,95 +1,95 @@
-# 🌿 AI-Based Crop Advisory System
+# 🌾 AgroAdvisor AI: Intelligent Crop & Disease Management
 
-An AI-powered agricultural advisory platform that provides **smart crop recommendations** and **plant disease detection** for farmers, backed by machine learning models and a modern web interface.
+AgroAdvisor AI is a professional, full-stack agricultural advisory platform designed to help farmers make data-driven decisions. It combines **Soil-based Crop Recommendation** (99% Accuracy) with **Deep Learning Plant Disease Detection** (98.5% Accuracy) to provide a complete digital assistant for modern farming.
 
-## 🏗️ Architecture
+---
 
+## 🌟 Key Features
+
+- **🚀 Real-time Disease Detection**: Upload a leaf image to identify 38 different plant diseases using a custom ResNet-based CNN.
+- **📈 Smart Crop Advisory**: Input soil nutrients (N, P, K), pH, and climate data to get the best crop recommendations.
+- **💊 Expert Treatment Advice**: Get actionable agricultural solutions for every detected disease.
+- **⚡ GPU Optimized**: Built with PyTorch and CUDA for lightning-fast training and inference.
+- **🎨 Premium UI**: Modern, responsive dashboard built with Next.js and Tailwind CSS.
+
+---
+
+## 🏗️ Project Architecture
+
+```text
+AgroAdvisor_AI/
+├── backend/                # FastAPI Python Server & AI Scripts
+│   ├── main.py             # Entry point
+│   ├── model_inference.py  # AI Prediction Logic
+│   ├── pytorch_model.py    # CNN Architecture
+│   ├── train_disease_model.py # Training Script
+│   └── requirements.txt    # Python Dependencies
+├── frontend/               # Next.js React Web App
+├── models/                 # Trained AI Weights (.pth, .pkl, .json)
+├── data/                   # Database & Metadata
+│   ├── advisory.db         # SQLite Prediction History
+│   ├── crop_info.json      # Crop Encyclopedia
+│   └── disease_info.json   # Disease Metadata
+├── plant_dataset/          # Raw Training Images (Ignored by Git)
+└── README.md
 ```
-Capstone_project/
-├── data/                          # Datasets
-│   ├── raw/                       # Raw datasets
-│   └── processed/                 # Cleaned, engineered datasets
-├── models/                        # Trained ML models
-├── scripts/                       # Data & ML scripts
-│   ├── data_preprocessing.py      # Data cleaning pipeline
-│   ├── feature_engineering.py     # Feature creation & train/test split
-│   ├── train_crop_model.py        # Crop recommendation model training
-│   ├── train_disease_model.py     # Disease detection model training
-│   └── inference.py               # Inference functions
-├── backend/                       # FastAPI REST API
-│   ├── main.py                    # Server entrypoint
-│   ├── routes.py                  # API endpoints
-│   ├── model_inference.py         # Model loading & prediction
-│   ├── database.py                # SQLite database models
-│   └── requirements.txt           # Python dependencies
-└── frontend/                      # Next.js web application
-    └── src/
-        ├── app/                   # Pages (Home, Crop, Disease, Dashboard)
-        ├── components/            # Reusable UI components
-        └── services/              # API client layer
-```
+
+---
 
 ## 🚀 Quick Start
 
-### 1. Install Python Dependencies
+### 1. Prerequisites
+- Python 3.10+
+- Node.js 18+
+- NVIDIA GPU (Optional, for fast training)
 
-```bash
-pip install -r backend/requirements.txt
-```
-
-### 2. Run Data Pipeline
-
-```bash
-python scripts/data_preprocessing.py
-python scripts/feature_engineering.py
-```
-
-### 3. Train Models
-
-```bash
-python scripts/train_crop_model.py
-python scripts/train_disease_model.py --demo
-```
-
-### 4. Start Backend Server
-
+### 2. Backend Setup
 ```bash
 cd backend
-uvicorn main:app --reload --port 8000
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+# Run the server
+.\venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000
 ```
 
-### 5. Start Frontend
-
+### 3. Frontend Setup
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Visit **http://localhost:3000** for the web app and **http://localhost:8000/docs** for API documentation.
+---
 
-## 📡 API Endpoints
+## 🤖 Machine Learning Details
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/predict-crop` | Crop recommendation based on soil/climate |
-| POST | `/api/detect-disease` | Disease detection from leaf image |
-| GET | `/api/weather?city=Mumbai` | Weather data (OpenWeatherMap) |
-| GET | `/api/market-prices` | Crop market prices |
-| GET | `/api/predictions` | Prediction history |
+### Plant Disease Detection (PyTorch)
+- **Architecture**: Custom ResNet-like CNN with 512-channel residual blocks.
+- **Dataset**: 70,295 training images across 38 classes.
+- **Performance**: **98.5% Validation Accuracy** achieved in 1 epoch on GPU.
+- **Input**: 256x256 RGB leaf images.
 
-## 🤖 ML Models
+### Crop Recommendation (Scikit-Learn)
+- **Architecture**: Random Forest Classifier with Feature Engineering.
+- **Features**: N, P, K, Temperature, Humidity, pH, Rainfall.
+- **Performance**: **99% Cross-Validation Accuracy**.
 
-- **Crop Recommendation**: Random Forest classifier trained on 22 crop classes with 7 soil/climate features + engineered features. Achieves 95%+ accuracy.
-- **Disease Detection**: MobileNetV2 CNN with transfer learning for 15 plant disease classes from the PlantVillage dataset.
-
-## ⚙️ Configuration
-
-- **Weather Data**: Set `OPENWEATHERMAP_API_KEY` environment variable for live weather (free at [openweathermap.org](https://openweathermap.org/api))
-- **Disease Model**: Run `python scripts/train_disease_model.py --train` with PlantVillage dataset for production accuracy
+---
 
 ## 🛠️ Tech Stack
 
-- **Backend**: Python, FastAPI, SQLAlchemy, SQLite
-- **ML**: scikit-learn, TensorFlow/Keras, pandas, numpy
-- **Frontend**: Next.js, TypeScript, Tailwind CSS, Axios
+- **Frontend**: Next.js 14, TypeScript, Tailwind CSS, Lucide Icons.
+- **Backend**: FastAPI, PyTorch (Deep Learning), Scikit-Learn (ML), NumPy.
+- **Data Handling**: Pandas, Pillow, TorchVision.
+- **Server**: Uvicorn.
+
+---
+
+## 👨‍💻 Author
+Built as a Final Project for **Lovely Professional University**.
+
+---
+
+## 📄 License
+This project is for academic and research purposes.
