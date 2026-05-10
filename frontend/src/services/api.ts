@@ -36,6 +36,16 @@ export async function predictCrop(data: CropInput): Promise<CropResponse> {
   return res.data;
 }
 
+export interface LocationCropInput {
+  state: string;
+  district: string;
+}
+
+export async function predictCropByLocation(data: LocationCropInput): Promise<CropResponse> {
+  const res = await api.post<CropResponse>("/predict-crop-location", data);
+  return res.data;
+}
+
 export interface DiseaseDetail {
   name?: string;
   plant?: string;

@@ -30,3 +30,7 @@ Kaggel_model/
 *.log
 Thumbs.db
 desktop.ini
+
+# Large Datasets
+*.csv
+**/.env*

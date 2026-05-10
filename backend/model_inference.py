@@ -16,9 +16,9 @@ from pathlib import Path
 
 # ── Paths ──────────────────────────────────────────────────────────────────
 # Using absolute paths to avoid Windows environment issues
-BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
-MODELS_DIR = os.path.join(PROJECT_ROOT, "models")
+BACKEND_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BACKEND_DIR.parent
+MODELS_DIR = PROJECT_ROOT / "models"
 
 print(f"[DEBUG] Backend Dir: {BACKEND_DIR}")
 print(f"[DEBUG] Models Dir: {MODELS_DIR}")
@@ -28,6 +28,8 @@ print(f"[DEBUG] Models Dir: {MODELS_DIR}")
 _crop_model_bundle = None
 _disease_model = None
 _disease_info = None
+_location_model = None
+_location_encoders = None
 
 
 def load_crop_model():
@@ -155,6 +157,77 @@ def predict_crop(
     else:
         pred = int(model.predict(feature_vector)[0])
         return [{"crop": label_map.get(pred, f"Unknown_{pred}"), "confidence": 1.0}]
+
+
+def load_location_model():
+    """Load the location-based crop prediction model."""
+    global _location_model, _location_encoders
+    if _location_model is not None and _location_encoders is not None:
+        return _location_model, _location_encoders
+    
+    encoders_path = MODELS_DIR / "location_encoders.pkl"
+    model_path = MODELS_DIR / "location_crop_model.pth"
+    
+    if not encoders_path.exists() or not model_path.exists():
+        raise FileNotFoundError("Location crop model or encoders not found.")
+        
+    with open(encoders_path, "rb") as f:
+        _location_encoders = pickle.load(f)
+        
+    import torch
+    from location_model import LocationCropModel
+    
+    checkpoint = torch.load(model_path, map_location=torch.device('cpu'), weights_only=True)
+    
+    _location_model = LocationCropModel(
+        num_states=checkpoint["num_states"],
+        num_districts=checkpoint["num_districts"],
+        num_crops=checkpoint["num_crops"]
+    )
+    _location_model.load_state_dict(checkpoint["model_state_dict"])
+    _location_model.eval()
+    
+    print(f"✅ [SUCCESS] Loaded Location Crop Model from {model_path.name}")
+    return _location_model, _location_encoders
+
+
+def predict_crop_by_location(state: str, district: str, top_k: int = 3) -> list[dict]:
+    """Predict crop recommendations based on State and District."""
+    model, encoders = load_location_model()
+    le_state = encoders["le_state"]
+    le_district = encoders["le_district"]
+    le_crop = encoders["le_crop"]
+    
+    # Handle unseen categories
+    try:
+        s_idx = le_state.transform([state])[0]
+    except ValueError:
+        s_idx = 0 
+    
+    try:
+        d_idx = le_district.transform([district])[0]
+    except ValueError:
+        d_idx = 0
+
+    import torch
+    
+    with torch.no_grad():
+        s_tensor = torch.tensor([s_idx], dtype=torch.long)
+        d_tensor = torch.tensor([d_idx], dtype=torch.long)
+        
+        outputs = model(s_tensor, d_tensor)
+        probabilities = torch.nn.functional.softmax(outputs[0], dim=0)
+        
+        top_indices = torch.argsort(probabilities, descending=True)[:top_k]
+        
+        results = []
+        for idx in top_indices:
+            idx_val = idx.item()
+            crop_name = le_crop.inverse_transform([idx_val])[0]
+            confidence = float(probabilities[idx_val].item())
+            results.append({"crop": crop_name, "confidence": round(confidence, 4)})
+            
+        return results
 
 
 def detect_disease(image_bytes: bytes) -> dict:

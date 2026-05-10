@@ -42,6 +42,12 @@ class CropInput(BaseModel):
     rainfall: float = Field(..., ge=0, le=600, description="Rainfall (mm)")
 
 
+class LocationCropInput(BaseModel):
+    """Input parameters for location-based crop prediction."""
+    state: str = Field(..., description="Name of the State")
+    district: str = Field(..., description="Name of the District")
+
+
 class CropResult(BaseModel):
     crop: str
     confidence: float
@@ -107,6 +113,38 @@ async def predict_crop_endpoint(data: CropInput, db: Session = Depends(get_db)):
             success=True,
             recommendations=[CropResult(**r) for r in results],
             message=f"Top recommendation: {results[0]['crop']}" if results else "",
+        )
+
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
+
+
+@router.post("/predict-crop-location", response_model=CropResponse, tags=["Predictions"])
+async def predict_crop_location_endpoint(data: LocationCropInput, db: Session = Depends(get_db)):
+    """
+    Recommend crops based on location (State and District).
+    """
+    from model_inference import predict_crop_by_location
+    try:
+        results = predict_crop_by_location(
+            state=data.state, 
+            district=data.district
+        )
+
+        advisory = AdvisoryLog(
+            action_type="crop_prediction_location",
+            request_summary=f"State={data.state}, District={data.district}",
+            response_summary=f"Recommended: {results[0]['crop']}" if results else "No result",
+        )
+        db.add(advisory)
+        db.commit()
+
+        return CropResponse(
+            success=True,
+            recommendations=[CropResult(**r) for r in results],
+            message=f"Top recommendation for {data.district}, {data.state}: {results[0]['crop']}" if results else "",
         )
 
     except FileNotFoundError as e:
