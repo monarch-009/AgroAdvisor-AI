@@ -39,6 +39,7 @@ export async function predictCrop(data: CropInput): Promise<CropResponse> {
 export interface LocationCropInput {
   state: string;
   district: string;
+  tehsil?: string;
 }
 
 export async function predictCropByLocation(data: LocationCropInput): Promise<CropResponse> {
@@ -163,4 +164,50 @@ export interface CropInfo {
 export async function getCropInfo(cropName: string): Promise<CropInfo> {
   const res = await api.get(`/crop-info/${encodeURIComponent(cropName)}`);
   return res.data.data;
+}
+
+// ── AI Advisory ─────────────────────────────────────────────────────────────
+
+export interface GrowthGuideRequest {
+  crop_name: string;
+  state?: string;
+  district?: string;
+}
+
+export interface GrowthGuideResponse {
+  success: boolean;
+  crop: string;
+  guide: string;
+}
+
+export async function generateGrowthGuide(data: GrowthGuideRequest): Promise<GrowthGuideResponse> {
+  const res = await api.post<GrowthGuideResponse>("/generate-growth-guide", data);
+  return res.data;
+}
+
+// ── Soil Data Fetching ──────────────────────────────────────────────────────
+
+export interface SoilFetchRequest {
+  state: string;
+  district: string;
+  village: string;
+}
+
+export interface SoilFetchResponse {
+  success: boolean;
+  data: {
+    N: number;
+    P: number;
+    K: number;
+    ph: number;
+    temperature: number;
+    humidity: number;
+    rainfall: number;
+    is_predicted: boolean;
+  };
+}
+
+export async function fetchSoilData(data: SoilFetchRequest): Promise<SoilFetchResponse> {
+  const res = await api.post<SoilFetchResponse>("/fetch-soil-data", data);
+  return res.data;
 }

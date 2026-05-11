@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db, CropPrediction, DiseaseDetection, AdvisoryLog
 from model_inference import predict_crop, detect_disease
+from gemini_service import generate_crop_growth_guide
 
 router = APIRouter()
 
@@ -46,6 +47,21 @@ class LocationCropInput(BaseModel):
     """Input parameters for location-based crop prediction."""
     state: str = Field(..., description="Name of the State")
     district: str = Field(..., description="Name of the District")
+    tehsil: str = Field("", description="Name of the Tehsil (Optional)")
+
+
+class SoilFetchRequest(BaseModel):
+    """Input for fetching soil data based on village/district."""
+    state: str
+    district: str
+    village: str
+
+
+class GrowthGuideRequest(BaseModel):
+    """Input for Gemini growth guide generation."""
+    crop_name: str
+    state: str = ""
+    district: str = ""
 
 
 class CropResult(BaseModel):
@@ -124,18 +140,19 @@ async def predict_crop_endpoint(data: CropInput, db: Session = Depends(get_db)):
 @router.post("/predict-crop-location", response_model=CropResponse, tags=["Predictions"])
 async def predict_crop_location_endpoint(data: LocationCropInput, db: Session = Depends(get_db)):
     """
-    Recommend crops based on location (State and District).
+    Recommend crops based on location (State, District, and Tehsil).
     """
     from model_inference import predict_crop_by_location
     try:
         results = predict_crop_by_location(
             state=data.state, 
-            district=data.district
+            district=data.district,
+            tehsil=data.tehsil
         )
 
         advisory = AdvisoryLog(
             action_type="crop_prediction_location",
-            request_summary=f"State={data.state}, District={data.district}",
+            request_summary=f"State={data.state}, District={data.district}, Tehsil={data.tehsil}",
             response_summary=f"Recommended: {results[0]['crop']}" if results else "No result",
         )
         db.add(advisory)
@@ -153,10 +170,57 @@ async def predict_crop_location_endpoint(data: LocationCropInput, db: Session = 
         raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
 
 
+@router.post("/generate-growth-guide", tags=["AI Advisory"])
+async def generate_growth_guide_endpoint(data: GrowthGuideRequest, db: Session = Depends(get_db)):
+    """
+    Generate a detailed crop growth guide using Gemini AI.
+    """
+    try:
+        location_info = f"{data.district}, {data.state}" if data.state and data.district else None
+        guide_text = generate_crop_growth_guide(data.crop_name, location_info)
+        
+        # Log to database
+        advisory = AdvisoryLog(
+            action_type="gemini_growth_guide",
+            request_summary=f"Crop: {data.crop_name}, Location: {location_info}",
+            response_summary="Generated guide using Gemini AI",
+        )
+        db.add(advisory)
+        db.commit()
+        
+        return {
+            "success": True,
+            "crop": data.crop_name,
+            "guide": guide_text
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI Advisory error: {str(e)}")
+
+
+@router.post("/fetch-soil-data", tags=["Data"])
+async def fetch_soil_data_endpoint(data: SoilFetchRequest):
+    """
+    Predict soil nutrient levels based on location (Village, District, State).
+    """
+    from model_inference import predict_soil_nutrients
+    try:
+        soil_data = predict_soil_nutrients(
+            state=data.state,
+            district=data.district,
+            village=data.village
+        )
+        return {
+            "success": True,
+            "data": soil_data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Soil data fetch error: {str(e)}")
+
+
 # ── Disease Detection ───────────────────────────────────────────────────────
 
 # Load disease info dataset from file (PlantVillage / ICAR sourced data)
-_DISEASE_INFO_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "disease_info.json")
+_DISEASE_INFO_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "metadata", "disease_info.json")
 _disease_info_cache = None
 
 
@@ -522,7 +586,7 @@ async def get_prediction_history(
 # ── Crop Information ───────────────────────────────────────────────────────
 
 # Load crop info dataset from file (ICAR / FAO sourced data)
-_CROP_INFO_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "crop_info.json")
+_CROP_INFO_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "metadata", "crop_info.json")
 _crop_info_cache = None
 
 

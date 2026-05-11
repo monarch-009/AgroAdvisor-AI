@@ -1,13 +1,25 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { predictCrop, predictCropByLocation, CropInput, LocationCropInput, CropResult } from "../../services/api";
 import { 
   Sprout, Send, Trophy, CheckCircle, AlertTriangle, Thermometer, 
   Droplets, FlaskConical, CloudRain, Atom, TestTubes, Beaker,
-  Search, RefreshCw, Activity, ArrowRight, MapPin, ChevronDown
+  Search, RefreshCw, Activity, ArrowRight, MapPin, ChevronDown, X
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { 
+  predictCrop, 
+  predictCropByLocation, 
+  generateGrowthGuide,
+  CropInput, 
+  LocationCropInput, 
+  CropResult,
+  fetchSoilData,
+  getWeather
+} from "../../services/api";
 import locationsRaw from "../../data/locations.json";
+import { tehsilData } from "../../data/tehsilMapping";
 
 const locationData = locationsRaw as Record<string, string[]>;
 const statesList = Object.keys(locationData);
@@ -78,21 +90,30 @@ export default function CropRecommendationPage() {
     temperature: 20.8, humidity: 82, ph: 6.5, rainfall: 202.9,
   });
 
-  const [locationForm, setLocationForm] = useState<LocationCropInput>({
-    state: statesList[0], district: locationData[statesList[0]][0]
+  const [locationForm, setLocationForm] = useState({
+    state: statesList[0], 
+    district: locationData[statesList[0]][0],
+    tehsil: "",
+    village: ""
   });
   const [results, setResults] = useState<CropResult[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [fetchLoading, setFetchLoading] = useState(false);
   const [error, setError] = useState("");
+  
+  // AI Growth Guide State
+  const [showGuide, setShowGuide] = useState(false);
+  const [isGuideLoading, setIsGuideLoading] = useState(false);
+  const [guideContent, setGuideContent] = useState<string | null>(null);
 
   const fields: { key: keyof CropInput; label: string; unit: string; min: number; max: number; icon: any; step?: number }[] = [
-    { key: "N", label: "Nitrogen (N)", unit: "kg/ha", min: 0, max: 200, icon: FlaskConical },
-    { key: "P", label: "Phosphorus (P)", unit: "kg/ha", min: 0, max: 200, icon: TestTubes },
-    { key: "K", label: "Potassium (K)", unit: "kg/ha", min: 0, max: 300, icon: Beaker },
-    { key: "temperature", label: "Temperature", unit: "°C", min: -10, max: 55, icon: Thermometer },
-    { key: "humidity", label: "Humidity", unit: "%", min: 0, max: 100, icon: Droplets },
+    { key: "N", label: "Nitrogen (N)", unit: "kg/ha", min: 0, max: 200, icon: FlaskConical, step: 0.1 },
+    { key: "P", label: "Phosphorus (P)", unit: "kg/ha", min: 0, max: 200, icon: TestTubes, step: 0.1 },
+    { key: "K", label: "Potassium (K)", unit: "kg/ha", min: 0, max: 300, icon: Beaker, step: 0.1 },
     { key: "ph", label: "Soil pH", unit: "pH", min: 0, max: 14, icon: Atom, step: 0.1 },
-    { key: "rainfall", label: "Rainfall", unit: "mm", min: 0, max: 600, icon: CloudRain },
+    { key: "temperature", label: "Temperature", unit: "°C", min: -10, max: 55, icon: Thermometer, step: 0.1 },
+    { key: "humidity", label: "Humidity", unit: "%", min: 0, max: 100, icon: Droplets, step: 0.1 },
+    { key: "rainfall", label: "Rainfall", unit: "mm", min: 0, max: 2500, icon: CloudRain, step: 0.1 },
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -112,6 +133,73 @@ export default function CropRecommendationPage() {
       setError("Analysis failed. Please check your backend connection.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFetchSoil = async () => {
+    if (!locationForm.village) {
+      setError("Please enter village name to fetch data");
+      return;
+    }
+    setFetchLoading(true);
+    setError("");
+    try {
+      const res = await fetchSoilData({
+        state: "", // State and District are now inferred by the backend
+        district: "",
+        village: locationForm.village
+      });
+      if (res.success) {
+        setForm({
+          ...form,
+          N: res.data.N,
+          P: res.data.P,
+          K: res.data.K,
+          ph: res.data.ph,
+          rainfall: res.data.rainfall,
+        });
+        setActiveTab("soil");
+      }
+
+      // ── Fetch Weather Data ──────────────────────────────────────
+      try {
+        const weather = await getWeather(locationForm.village);
+        if (weather) {
+          setForm(prev => ({
+            ...prev,
+            temperature: weather.temperature,
+            humidity: weather.humidity
+          }));
+        }
+      } catch (wErr) {
+        console.warn("Weather fetch failed, keeping manual values:", wErr);
+      }
+    } catch (err) {
+      setError("Failed to fetch soil data. Please try manual entry.");
+    } finally {
+      setFetchLoading(false);
+    }
+  };
+
+  const handleViewGuide = async () => {
+    if (!results || results.length === 0) return;
+    const topCrop = results[0].crop;
+    
+    setIsGuideLoading(true);
+    setShowGuide(true);
+    setGuideContent(null);
+    
+    try {
+      const res = await generateGrowthGuide({
+        crop_name: topCrop,
+        state: activeTab === "location" ? locationForm.state : undefined,
+        district: activeTab === "location" ? locationForm.district : undefined
+      });
+      setGuideContent(res.guide);
+    } catch (err) {
+      setGuideContent("## Error\nFailed to generate the growth guide. Please try again later.");
+    } finally {
+      setIsGuideLoading(false);
     }
   };
 
@@ -147,7 +235,7 @@ export default function CropRecommendationPage() {
                 activeTab === "soil" ? "bg-white text-green-600 shadow-sm" : "text-gray-500 hover:text-gray-900"
               }`}
             >
-              BY SOIL PROFILE
+              SOIL ANALYSIS
             </button>
             <button
               onClick={() => { setActiveTab("location"); setResults(null); }}
@@ -155,67 +243,115 @@ export default function CropRecommendationPage() {
                 activeTab === "location" ? "bg-white text-green-600 shadow-sm" : "text-gray-500 hover:text-gray-900"
               }`}
             >
-              BY LOCATION
+              REGION ANALYSIS
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {activeTab === "soil" ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {fields.map((field) => {
-                const Icon = field.icon;
-                return (
-                  <div key={field.key} className="bg-gray-50/50 p-4 rounded-2xl border-2 border-transparent focus-within:border-green-500 focus-within:bg-white transition-all group">
-                    <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2">
-                      <Icon size={12} className="group-focus-within:text-green-600" />
-                      {field.label}
-                      <span className="opacity-50 lowercase font-bold">({field.unit})</span>
-                    </label>
+            {activeTab === "soil" && (
+              <div className="space-y-6 animate-in">
+                {/* ── Auto-fill Section ──────────────────────────── */}
+                <div className="bg-green-50/50 p-6 rounded-3xl border-2 border-green-100/50">
+                  <p className="text-[10px] font-black text-green-600 uppercase tracking-widest mb-4">Auto-fill from Village</p>
+                  <div className="flex gap-3">
                     <input
-                      type="number"
-                      className="w-full bg-transparent text-lg font-black text-gray-900 outline-none"
-                      value={form[field.key]}
-                      min={field.min}
-                      max={field.max}
-                      step={field.step || 1}
-                      onChange={(e) => setForm({ ...form, [field.key]: parseFloat(e.target.value) || 0 })}
-                      required
+                      type="text"
+                      placeholder="Enter your village name..."
+                      className="flex-1 bg-white px-5 py-4 rounded-2xl border-2 border-transparent focus:border-green-500 outline-none text-base font-bold shadow-sm placeholder:text-gray-200"
+                      value={locationForm.village}
+                      onChange={(e) => setLocationForm({ ...locationForm, village: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleFetchSoil}
+                      className="bg-green-600 text-white px-8 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-green-700 transition-all flex items-center gap-2 shadow-lg shadow-green-100"
+                      disabled={fetchLoading}
+                    >
+                      {fetchLoading ? <RefreshCw size={16} className="animate-spin" /> : <Search size={16} />}
+                      Fetch Data
+                    </button>
+                  </div>
+
+                </div>
+
+                <div className="relative py-2 flex items-center">
+                  <div className="flex-grow border-t border-gray-100"></div>
+                  <span className="flex-shrink mx-4 text-[10px] font-black text-gray-300 uppercase tracking-widest">OR MANUAL ENTRY</span>
+                  <div className="flex-grow border-t border-gray-100"></div>
+                </div>
+
+                {/* ── Manual Fields ──────────────────────────────── */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {fields.map((field) => {
+                    const Icon = field.icon;
+                    return (
+                      <div key={field.key} className="bg-gray-50/50 p-4 rounded-2xl border-2 border-transparent focus-within:border-green-500 focus-within:bg-white transition-all group">
+                        <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2">
+                          <Icon size={12} className="group-focus-within:text-green-600" />
+                          {field.label}
+                          <span className="opacity-50 lowercase font-bold">({field.unit})</span>
+                        </label>
+                        <input
+                          type="number"
+                          className="w-full bg-transparent text-lg font-black text-gray-900 outline-none"
+                          value={form[field.key]}
+                          min={field.min}
+                          max={field.max}
+                          step={field.step || 1}
+                          onChange={(e) => setForm({ ...form, [field.key]: parseFloat(e.target.value) || 0 })}
+                          required
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "location" && (
+              <div className="space-y-6 animate-in">
+                <div className="bg-amber-50/50 p-6 rounded-3xl border-2 border-amber-100/50 mb-6 text-center">
+                   <p className="text-xs font-bold text-amber-700 leading-relaxed">
+                     Get crop recommendations directly from historical agricultural data for your district without soil testing.
+                   </p>
+                </div>
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="bg-gray-50/50 p-4 rounded-2xl border-2 border-transparent focus-within:border-green-500 focus-within:bg-white transition-all group relative">
+                    <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2">
+                      <MapPin size={12} className="group-focus-within:text-green-600" />
+                      State
+                    </label>
+                    <CustomSelect
+                      value={locationForm.state}
+                      options={statesList}
+                      onChange={(newState) => setLocationForm({ ...locationForm, state: newState, district: locationData[newState][0] || "" })}
                     />
                   </div>
-                );
-              })}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4">
-                <div className="bg-gray-50/50 p-4 rounded-2xl border-2 border-transparent focus-within:border-green-500 focus-within:bg-white transition-all group relative">
-                  <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2">
-                    <MapPin size={12} className="group-focus-within:text-green-600" />
-                    State
-                  </label>
-                  <CustomSelect
-                    value={locationForm.state}
-                    options={statesList}
-                    onChange={(newState) => {
-                      setLocationForm({
-                        state: newState,
-                        district: locationData[newState][0] || ""
-                      });
-                    }}
-                  />
-                </div>
-                
-                <div className="bg-gray-50/50 p-4 rounded-2xl border-2 border-transparent focus-within:border-green-500 focus-within:bg-white transition-all group relative">
-                  <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2">
-                    <MapPin size={12} className="group-focus-within:text-green-600" />
-                    District
-                  </label>
-                  <CustomSelect
-                    value={locationForm.district}
-                    options={locationData[locationForm.state] || []}
-                    onChange={(newDistrict) => {
-                      setLocationForm({ ...locationForm, district: newDistrict });
-                    }}
-                  />
+                  
+                  <div className="bg-gray-50/50 p-4 rounded-2xl border-2 border-transparent focus-within:border-green-500 focus-within:bg-white transition-all group relative">
+                    <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2">
+                      <MapPin size={12} className="group-focus-within:text-green-600" />
+                      District
+                    </label>
+                    <CustomSelect
+                      value={locationForm.district}
+                      options={locationData[locationForm.state] || []}
+                      onChange={(newDistrict) => setLocationForm({ ...locationForm, district: newDistrict, tehsil: "" })}
+                    />
+                  </div>
+
+                  <div className="bg-gray-50/50 p-4 rounded-2xl border-2 border-transparent focus-within:border-green-500 focus-within:bg-white transition-all group relative">
+                    <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2">
+                      <MapPin size={12} className="group-focus-within:text-green-600" />
+                      Tehsil
+                    </label>
+                    <CustomSelect
+                      value={locationForm.tehsil}
+                      options={tehsilData[locationForm.district.toUpperCase()] || tehsilData[locationForm.district] || []}
+                      onChange={(newTehsil) => setLocationForm({ ...locationForm, tehsil: newTehsil })}
+                      placeholder="Select tehsil..."
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -261,8 +397,8 @@ export default function CropRecommendationPage() {
           {loading && (
             <div className="flex flex-col items-center justify-center h-64 text-center">
                <div className="w-20 h-20 border-4 border-green-100 border-t-green-600 rounded-full animate-spin mb-6" />
-               <p className="text-sm font-black text-gray-900 uppercase tracking-widest">Random Forest Processing...</p>
-               <p className="text-xs text-gray-400 font-medium mt-2">Computing optimal growth probability across 22 crops</p>
+               <p className="text-sm font-black text-gray-900 uppercase tracking-widest">Neural Network Processing...</p>
+               <p className="text-xs text-gray-400 font-medium mt-2">Computing optimal growth probability across 100+ specialized crops</p>
             </div>
           )}
 
@@ -309,7 +445,10 @@ export default function CropRecommendationPage() {
 
               <div className="mt-8 pt-6 border-t border-gray-100 flex items-center justify-between">
                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ready to proceed?</p>
-                 <button className="flex items-center gap-2 text-xs font-black text-green-600 hover:gap-3 transition-all">
+                 <button 
+                   onClick={handleViewGuide}
+                   className="flex items-center gap-2 text-xs font-black text-green-600 hover:gap-3 transition-all cursor-pointer"
+                 >
                     VIEW GROWTH GUIDE <ArrowRight size={14} />
                  </button>
               </div>
@@ -318,6 +457,77 @@ export default function CropRecommendationPage() {
         </div>
 
       </div>
+
+      {/* ── AI Growth Guide Modal ────────────────────────────── */}
+      {showGuide && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in duration-300">
+            <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-green-50/50">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-green-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-green-200">
+                  <Sprout size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-gray-900">AI Growth Guide</h3>
+                  <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">Powered by Gemini 1.5 Pro</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => { setShowGuide(false); setGuideContent(null); }}
+                className="p-3 hover:bg-white rounded-full transition-colors text-gray-400 hover:text-gray-900"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-8 lg:p-12 scrollbar-hide">
+              {isGuideLoading ? (
+                <div className="flex flex-col items-center justify-center py-24 text-center">
+                  <div className="w-20 h-20 border-4 border-green-100 border-t-green-600 rounded-full animate-spin mb-8" />
+                  <h4 className="text-lg font-black text-gray-900 uppercase tracking-widest mb-2">Analyzing Agronomy...</h4>
+                  <p className="text-sm text-gray-400 font-medium">Gemini AI is crafting a custom cultivation strategy for your land</p>
+                </div>
+              ) : (
+                <div className="markdown-content max-w-none">
+                  <style jsx global>{`
+                    .markdown-content h1 { font-size: 2.25rem; margin-bottom: 1.5rem; font-weight: 900; color: #111827; line-height: 1.2; }
+                    .markdown-content h2 { font-size: 1.75rem; margin-top: 2.5rem; margin-bottom: 1.25rem; font-weight: 900; color: #111827; border-left: 4px solid #16a34a; padding-left: 1rem; }
+                    .markdown-content h3 { font-size: 1.25rem; margin-top: 1.5rem; margin-bottom: 0.75rem; font-weight: 900; color: #111827; }
+                    .markdown-content p { margin-bottom: 1.25rem; line-height: 1.8; color: #374151; font-size: 1rem; }
+                    .markdown-content ul, .markdown-content ol { margin-bottom: 1.5rem; padding-left: 1.5rem; list-style-type: disc; }
+                    .markdown-content li { margin-bottom: 0.75rem; color: #374151; line-height: 1.6; }
+                    .markdown-content strong { color: #111827; font-weight: 800; }
+                    
+                    /* Table Styling */
+                    .markdown-content table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 2rem 0; border: 2px solid #f3f4f6; rounded: 1rem; overflow: hidden; border-radius: 1rem; }
+                    .markdown-content th { background-color: #f9fafb; color: #111827; font-weight: 800; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; padding: 1rem; text-align: left; border-bottom: 2px solid #f3f4f6; }
+                    .markdown-content td { padding: 1rem; border-bottom: 1px solid #f3f4f6; color: #4b5563; font-size: 0.9375rem; line-height: 1.5; vertical-align: top; }
+                    .markdown-content tr:last-child td { border-bottom: none; }
+                    .markdown-content tr:hover td { background-color: #fcfdfc; }
+                    
+                    /* Blockquote / Pro-tip Styling */
+                    .markdown-content blockquote { margin: 2rem 0; padding: 1.5rem; background-color: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 0 1rem 1rem 0; font-style: italic; color: #166534; }
+                    .markdown-content blockquote p { margin-bottom: 0; font-weight: 600; }
+                  `}</style>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{guideContent || ""}</ReactMarkdown>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-8 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-center sm:text-left">
+                  This guide is AI-generated and should be verified with local experts.
+                </p>
+                <button 
+                  onClick={() => { setShowGuide(false); setGuideContent(null); }}
+                  className="w-full sm:w-auto px-10 py-4 bg-gray-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-800 transition-all shadow-xl shadow-gray-200 active:scale-[0.98]"
+                >
+                  Got it, close
+                </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -9,6 +9,8 @@ export const metadata: Metadata = {
     "AI-powered crop recommendation and plant disease detection system for farmers. Get personalized crop advice based on soil and climate data.",
 };
 
+// Force cache refresh for modernized regional analysis v2.1
+
 export default function RootLayout({
   children,
 }: {
