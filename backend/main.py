@@ -79,7 +79,7 @@ async def health_check():
     """Detailed health check."""
     models_dir = BASE_DIR / "models"
     crop_model = models_dir / "crop_recommendation_model.pkl"
-    disease_model = models_dir / "plant_disease_model.h5"
+    disease_model = models_dir / "plant_disease_model.pth"
     disease_classes = models_dir / "disease_classes.json"
 
     return {
