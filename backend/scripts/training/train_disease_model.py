@@ -8,14 +8,21 @@ import torchvision.transforms as transforms
 from torchvision.datasets import ImageFolder
 import torch.nn.functional as F
 
-from pytorch_model import CNN_NeuralNet
+# Add backend to path for imports
+BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if BACKEND_DIR not in sys.path:
+    sys.path.append(BACKEND_DIR)
+
+from core.architectures.pytorch_model import CNN_NeuralNet
 
 # Set paths
-DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "plant_dataset"))
+# Set paths
+PROJECT_ROOT = os.path.abspath(os.path.join(BACKEND_DIR, ".."))
+DATA_DIR = os.path.join(PROJECT_ROOT, "data", "datasets", "plant_dataset")
 TRAIN_DIR = os.path.join(DATA_DIR, "train")
 VALID_DIR = os.path.join(DATA_DIR, "valid")
-MODEL_OUT_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "plant_disease_model.pth")
-CLASSES_OUT_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "disease_classes.json")
+MODEL_OUT_PATH = os.path.join(PROJECT_ROOT, "models", "plant_disease_model.pth")
+CLASSES_OUT_PATH = os.path.join(PROJECT_ROOT, "models", "disease_classes.json")
 
 print(f"Dataset directory: {DATA_DIR}")
 if not os.path.exists(TRAIN_DIR):

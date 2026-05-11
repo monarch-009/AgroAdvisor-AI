@@ -54,7 +54,7 @@ def load_disease_model():
     if os.path.exists(model_path):
         try:
             import torch
-            from pytorch_model import CNN_NeuralNet
+            from core.architectures.pytorch_model import CNN_NeuralNet
             num_classes = len(_disease_info.get("classes", []))
             _disease_model = CNN_NeuralNet(3, num_classes)
             state_dict = torch.load(model_path, map_location=torch.device('cpu'))
@@ -120,7 +120,7 @@ def load_location_model_v2():
         _location_encoders_v2 = pickle.load(f)
         
     import torch
-    from location_model_v2 import LocationCropModelV2
+    from core.architectures.location_model_v2 import LocationCropModelV2
     
     checkpoint = torch.load(model_path, map_location=torch.device('cpu'), weights_only=True)
     
@@ -198,7 +198,7 @@ def load_soil_model():
     if not encoders_path.exists() or not model_path.exists(): return None, None
     with open(encoders_path, "rb") as f: _soil_encoders = pickle.load(f)
     import torch
-    from soil_model import SoilNutrientNet
+    from core.architectures.soil_model import SoilNutrientNet
     checkpoint = torch.load(model_path, map_location=torch.device('cpu'), weights_only=True)
     _soil_model = SoilNutrientNet(num_states=checkpoint["num_states"], num_districts=checkpoint["num_districts"], num_villages=checkpoint["num_villages"])
     _soil_model.load_state_dict(checkpoint["model_state_dict"])

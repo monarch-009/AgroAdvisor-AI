@@ -18,6 +18,7 @@ export interface CropInput {
   humidity: number;
   ph: number;
   rainfall: number;
+  user_id?: string;
 }
 
 export interface CropResult {
@@ -40,6 +41,7 @@ export interface LocationCropInput {
   state: string;
   district: string;
   tehsil?: string;
+  user_id?: string;
 }
 
 export async function predictCropByLocation(data: LocationCropInput): Promise<CropResponse> {
@@ -125,7 +127,26 @@ export async function getMarketPrices(): Promise<MarketPrice[]> {
   return res.data.data;
 }
 
-// ── History ─────────────────────────────────────────────────────────────────
+// ── Dashboard & History ─────────────────────────────────────────────────────
+
+export interface DashboardStats {
+  total_searches: number;
+  most_recommended: string[];
+  top_locations: string[];
+  last_search: string | null;
+  recent_history: any[];
+  diversity_score: number;
+}
+
+export async function getDashboardSummary(userId: string): Promise<DashboardStats> {
+  const res = await api.get("/dashboard-summary", { params: { user_id: userId } });
+  return res.data.data;
+}
+
+export async function getUserSearchHistory(userId: string, limit: number = 10) {
+  const res = await api.get("/user-history", { params: { user_id: userId, limit } });
+  return res.data.data;
+}
 
 export async function getPredictionHistory(limit: number = 10) {
   const res = await api.get("/predictions", { params: { limit } });

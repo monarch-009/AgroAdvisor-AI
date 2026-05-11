@@ -1,0 +1,36 @@
+services:
+  # ── Backend Service (FastAPI) ──────────────────────────────────────────────
+  - type: web
+    name: agroadvisor-api
+    env: python
+    region: ohio
+    plan: free
+    buildCommand: "pip install -r backend/requirements.txt"
+    startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.12
+      - key: GEMINI_API_KEY
+        sync: false # Set this in Render Dashboard
+      - key: OPENWEATHER_API_KEY
+        sync: false # Set this in Render Dashboard
+
+  # ── Frontend Service (Next.js) ─────────────────────────────────────────────
+  - type: web
+    name: agroadvisor-web
+    env: node
+    region: ohio
+    plan: free
+    buildCommand: "cd frontend && npm install && npm run build"
+    startCommand: "cd frontend && npm start"
+    envVars:
+      - key: NODE_VERSION
+        value: 20.x
+      - key: NEXT_PUBLIC_API_URL
+        value: https://agroadvisor-api.onrender.com/api # Replace with your actual backend URL after first deploy
+      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        sync: false # Set this in Render Dashboard
+      - key: CLERK_SECRET_KEY
+        sync: false # Set this in Render Dashboard
+      - key: MONGODB_URI
+        sync: false # Set this in Render Dashboard

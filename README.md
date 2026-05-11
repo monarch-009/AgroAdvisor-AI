@@ -19,13 +19,19 @@ AgroAdvisor AI is a professional, full-stack agricultural advisory platform desi
 ```text
 AgroAdvisor_AI/
 ├── backend/            # FastAPI Server & AI Inference Logic
+│   ├── core/           # Business Logic & AI Architectures
+│   │   └── architectures/ # Model Class Definitions (Python)
+│   ├── scripts/        # Utility & Training Scripts
+│   ├── main.py         # API Entry Point
+│   ├── routes.py       # API Endpoints
+│   └── database.py     # SQLite/ORM logic
 ├── frontend/           # Next.js React Web Application
-├── models/             # Production-ready AI Model Weights (.pth, .pkl)
+├── models/             # Trained Model Weights & Encoders (.pth, .pkl)
 ├── data/               # App Data (Database & JSON Metadata)
 │   ├── metadata/       # Crop & Disease Encyclopedias
 │   └── advisory.db     # Local Prediction History
-├── datasets/           # Raw Training Data & Local Backups (Ignored by Git)
-├── scripts/            # Utility & Data Processing Scripts
+├── datasets/           # Raw Training Data & Local Backups
+├── scripts/            # Global Utility Scripts
 └── README.md
 ```
 
@@ -55,19 +61,35 @@ npm run dev
 
 ---
 
+## ☁️ Deployment (Render)
+
+This project is prepared for one-click deployment on **Render** using the included `render.yaml` blueprint.
+
+1.  Push this code to **GitHub**.
+2.  In **Render Dashboard**, click **New +** -> **Blueprint**.
+3.  Connect your repository.
+4.  Configure the required environment variables in the Render Dashboard.
+
+---
+
 ## 🛠️ Tech Stack
 
-- **Frontend**: Next.js 14, TypeScript, Tailwind CSS, Lucide Icons.
-- **Backend**: FastAPI, PyTorch, Scikit-Learn, NumPy, Pandas.
-- **AI Models**: CNN (Disease), Random Forest (Crop), Neural Networks (Location/Soil).
-- **APIs**: Open-Meteo (Weather), Gemini AI (Advanced Growth Guides).
+- **Frontend**: Next.js 14+, TypeScript, Tailwind CSS, Lucide Icons.
+- **Backend**: FastAPI, PyTorch (CPU Optimized), Scikit-Learn.
+- **AI Models**: CNN (Disease Detection), Neural Networks (Location & Soil Intelligence).
+- **Advisory**: Gemini AI integration for dynamic cultivation manuals.
 
 ---
 
 ## 🔒 Environment Variables
-Ensure you have the following in your `.env` files:
-- **Backend**: `GEMINI_API_KEY`, `OPENWEATHERMAP_API_KEY` (optional)
-- **Frontend**: `NEXT_PUBLIC_API_URL=http://localhost:8000/api`
+
+### Backend (`/backend/.env`)
+- `GEMINI_API_KEY`: Get from Google AI Studio.
+
+### Frontend (`/frontend/.env.local`)
+- `NEXT_PUBLIC_API_URL`: Your backend URL (e.g., `https://agroadvisor-api.onrender.com/api`).
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`: From Clerk dashboard.
+- `CLERK_SECRET_KEY`: From Clerk dashboard.
 
 ---
 

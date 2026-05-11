@@ -17,7 +17,7 @@ from pathlib import Path
 
 # ── Database Setup ───────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = BASE_DIR / "data" / "advisory.db"
+DB_PATH = BASE_DIR / "data" / "advisory_v2.db"
 DB_URL = f"sqlite:///{DB_PATH}"
 
 engine = create_engine(DB_URL, echo=False, connect_args={"check_same_thread": False})
@@ -32,6 +32,7 @@ class CropPrediction(Base):
     __tablename__ = "crop_predictions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(100), default="guest")
     timestamp = Column(DateTime, default=datetime.utcnow)
     nitrogen = Column(Float, nullable=False)
     phosphorus = Column(Float, nullable=False)
@@ -50,6 +51,7 @@ class DiseaseDetection(Base):
     __tablename__ = "disease_detections"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(100), default="guest")
     timestamp = Column(DateTime, default=datetime.utcnow)
     image_filename = Column(String(255))
     detected_disease = Column(String(200), nullable=False)
@@ -63,6 +65,7 @@ class AdvisoryLog(Base):
     __tablename__ = "advisory_logs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(100), default="guest")
     timestamp = Column(DateTime, default=datetime.utcnow)
     action_type = Column(String(50), nullable=False)  # crop_prediction, disease_detection, weather, market
     request_summary = Column(Text)

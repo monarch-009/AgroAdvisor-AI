@@ -8,8 +8,8 @@ import os
 
 # Paths
 BACKEND_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = BACKEND_DIR.parent
-DATA_DIR = PROJECT_ROOT / "datasets" / "rain"
+PROJECT_ROOT = BACKEND_DIR.parent.parent.parent
+DATA_DIR = PROJECT_ROOT / "data" / "datasets" / "rain"
 MODELS_DIR = PROJECT_ROOT / "models"
 MODELS_DIR.mkdir(exist_ok=True)
 
@@ -64,7 +64,7 @@ def train_rain_model():
     }
     
     # Backup folder
-    BACKUP_DIR = PROJECT_ROOT / "datasets" / "trained_models_backup"
+    BACKUP_DIR = PROJECT_ROOT / "data" / "datasets" / "trained_models_backup"
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
     
     save_path = BACKUP_DIR / "rain_model.pkl"

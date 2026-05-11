@@ -103,30 +103,40 @@ async def health_check():
 async def startup():
     """Pre-load models on server start."""
     print("\n" + "=" * 50)
-    print("🌾 AI Crop Advisory System — Starting")
+    print("AI Crop Advisory System - Starting")
     print("=" * 50)
 
     # Try to pre-load crop model
     try:
         from model_inference import load_crop_model
         load_crop_model()
-        print("✅ Crop recommendation model loaded")
+        print("DONE: Crop recommendation model loaded")
     except FileNotFoundError:
-        print("⚠️  Crop model not found — run train_crop_model.py")
+        print("ERROR: Crop model not found - run train_crop_model.py")
     except Exception as e:
-        print(f"⚠️  Crop model load error: {e}")
+        print(f"ERROR: Crop model load error: {e}")
 
     # Try to pre-load disease model
     try:
         from model_inference import load_disease_model
         load_disease_model()
-        print("✅ Disease detection model loaded")
+        print("DONE: Disease detection model loaded")
     except FileNotFoundError:
-        print("⚠️  Disease model not found — run train_disease_model.py")
+        print("ERROR: Disease model not found - run train_disease_model.py")
     except Exception as e:
-        print(f"⚠️  Disease model load error: {e}")
+        print(f"ERROR: Disease model load error: {e}")
+
+    # Try to pre-load region analysis data
+    try:
+        from routes import region_service
+        # Run initialization in background to not block startup
+        import threading
+        threading.Thread(target=region_service.initialize_system).start()
+        print("ASYNC: Region analysis system initialization started")
+    except Exception as e:
+        print(f"ERROR: Region analysis init error: {e}")
 
     print("=" * 50)
-    print("🚀 Server ready at http://localhost:8000")
-    print("📖 API docs at http://localhost:8000/docs")
+    print("Server ready at http://localhost:8000")
+    print("API docs at http://localhost:8000/docs")
     print("=" * 50 + "\n")

@@ -18,9 +18,9 @@ import pickle
 
 # ----------------- Configuration -----------------
 BACKEND_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = BACKEND_DIR.parent
+PROJECT_ROOT = BACKEND_DIR.parent.parent.parent
 MODELS_DIR = PROJECT_ROOT / "models"
-DATA_PATH = PROJECT_ROOT / "datasets" / "crop-wise-area-production-yield.csv"
+DATA_PATH = PROJECT_ROOT / "data" / "datasets" / "crop-wise-area-production-yield.csv"
 
 MODEL_SAVE_PATH = MODELS_DIR / "location_crop_model.pth"
 ENCODERS_SAVE_PATH = MODELS_DIR / "location_encoders.pkl"

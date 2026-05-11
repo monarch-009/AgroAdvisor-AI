@@ -1,5 +1,6 @@
 # Prerequisites
 venv/
+.venv/
 node_modules/
 .env
 .env.local
@@ -23,7 +24,7 @@ desktop.ini
 .idea/
 
 # Large Datasets & Raw Data
-datasets/
+data/datasets/
 plant_dataset/
 *.zip
 *.tar.gz

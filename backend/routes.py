@@ -22,6 +22,8 @@ from sqlalchemy.orm import Session
 from database import get_db, CropPrediction, DiseaseDetection, AdvisoryLog
 from model_inference import predict_crop, detect_disease
 from gemini_service import generate_crop_growth_guide
+from region_analysis.service import RegionAnalysisService
+
 
 router = APIRouter()
 
@@ -29,18 +31,32 @@ router = APIRouter()
 OWM_API_KEY = os.environ.get("OPENWEATHERMAP_API_KEY", "")
 OWM_BASE_URL = "https://api.openweathermap.org/data/2.5"
 
+# ── Region Analysis Service ────────────────────────────────────────────────
+DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "datasets", "crop-wise-area-production-yield.csv")
+region_service = RegionAnalysisService(DATA_PATH)
+
+# ── MongoDB Manager for Search History ────────────────────────────────────
+from region_analysis.database import MongoManager
+mongo_manager = MongoManager()
+try:
+    mongo_manager.connect()
+except Exception:
+    print("WARNING: MongoDB not connected. History features will be limited.")
+
+
 
 # ── Request/Response Models ─────────────────────────────────────────────────
 
 class CropInput(BaseModel):
     """Input parameters for crop prediction."""
-    N: float = Field(..., ge=0, le=200, description="Nitrogen content (kg/ha)")
-    P: float = Field(..., ge=0, le=200, description="Phosphorus content (kg/ha)")
-    K: float = Field(..., ge=0, le=300, description="Potassium content (kg/ha)")
-    temperature: float = Field(..., ge=-10, le=55, description="Temperature (°C)")
+    N: float = Field(..., ge=0, le=500, description="Nitrogen content (kg/ha)")
+    P: float = Field(..., ge=0, le=500, description="Phosphorus content (kg/ha)")
+    K: float = Field(..., ge=0, le=500, description="Potassium content (kg/ha)")
+    temperature: float = Field(..., ge=-20, le=60, description="Temperature (°C)")
     humidity: float = Field(..., ge=0, le=100, description="Humidity (%)")
     ph: float = Field(..., ge=0, le=14, description="Soil pH value")
-    rainfall: float = Field(..., ge=0, le=600, description="Rainfall (mm)")
+    rainfall: float = Field(..., ge=0, le=3000, description="Rainfall (mm)")
+    user_id: str = Field("guest", description="Clerk User ID")
 
 
 class LocationCropInput(BaseModel):
@@ -48,6 +64,7 @@ class LocationCropInput(BaseModel):
     state: str = Field(..., description="Name of the State")
     district: str = Field(..., description="Name of the District")
     tehsil: str = Field("", description="Name of the Tehsil (Optional)")
+    user_id: str = Field("guest", description="Clerk User ID")
 
 
 class SoilFetchRequest(BaseModel):
@@ -157,6 +174,16 @@ async def predict_crop_location_endpoint(data: LocationCropInput, db: Session = 
         )
         db.add(advisory)
         db.commit()
+
+        # ── MongoDB Logging (Regional History) ────────────────────────────
+        try:
+            mongo_manager.store_recommendation(
+                user_query=data.dict(),
+                recommendations=results,
+                user_id=data.user_id
+            )
+        except Exception as e:
+            print(f"MongoDB Log Error: {e}")
 
         return CropResponse(
             success=True,
@@ -664,3 +691,128 @@ async def get_crop_info(crop_name: str):
         "data": crop,
     }
 
+
+@router.get("/recommend")
+async def get_regional_recommendation(
+    state: str = Query(..., description="State name"),
+    district: str = Query(..., description="District name"),
+    season: str = Query(..., description="Season (Kharif, Rabi, etc.)"),
+    user_id: str = Query("guest", description="Clerk User ID")
+):
+    """
+    Get intelligent regional crop recommendations based on historical APY data.
+    """
+    try:
+        recommendations = region_service.recommend(state, district, season)
+        
+        # ── MongoDB Logging (Regional Analysis) ───────────────────────────
+        try:
+            mongo_manager.store_recommendation(
+                user_query={"state": state, "district": district, "season": season, "type": "regional_analysis"},
+                recommendations=recommendations,
+                user_id=user_id
+            )
+        except Exception as e:
+            print(f"MongoDB Log Error: {e}")
+            
+        return {"recommended_crops": recommendations}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Recommendation engine failed: {str(e)}")
+
+# ── Dashboard & Personalized History ──────────────────────────────────────
+
+@router.get("/dashboard-summary", tags=["Dashboard"])
+async def get_dashboard_summary(user_id: str = Query(...), db: Session = Depends(get_db)):
+    """
+    Get personalized dashboard statistics merging data from MongoDB and SQLite.
+    """
+    try:
+        # 1. Try MongoDB Stats
+        stats = None
+        try:
+            stats = mongo_manager.get_dashboard_stats(user_id)
+        except Exception as e:
+            print(f"MongoDB connection failed, falling back to local storage: {e}")
+        
+        # If MongoDB fails or is empty, use local data to build stats
+        if not stats:
+            # 2. Get SQLite Data (Fallback/Hybrid)
+            local_history = (
+                db.query(CropPrediction)
+                .filter(CropPrediction.user_id == user_id)
+                .order_by(CropPrediction.timestamp.desc())
+                .limit(5)
+                .all()
+            )
+            total_local = db.query(CropPrediction).filter(CropPrediction.user_id == user_id).count()
+            
+            # Simple most recommended logic for local
+            from collections import Counter
+            all_local = db.query(CropPrediction).filter(CropPrediction.user_id == user_id).all()
+            crop_counts = Counter([p.recommended_crop for p in all_local])
+            most_rec = [c for c, count in crop_counts.most_common(3)]
+            
+            stats = {
+                "total_searches": total_local,
+                "most_recommended": most_rec,
+                "top_locations": [],
+                "last_search": local_history[0].timestamp.isoformat() if local_history else None,
+                "recent_history": [],
+                "diversity_score": len(crop_counts)
+            }
+            
+            # Format local history for the dashboard
+            for p in local_history:
+                stats['recent_history'].append({
+                    "query": {"type": "soil_analysis", "ph": p.ph},
+                    "results": [{"crop": p.recommended_crop, "confidence": p.confidence}],
+                    "timestamp": p.timestamp.isoformat()
+                })
+        else:
+            # Stats exist from MongoDB, just format them
+            for entry in stats['recent_history']:
+                if '_id' in entry: entry['_id'] = str(entry['_id'])
+                if 'timestamp' in entry and not isinstance(entry['timestamp'], str): 
+                    entry['timestamp'] = entry['timestamp'].isoformat()
+            
+            if stats['last_search'] and not isinstance(stats['last_search'], str):
+                stats['last_search'] = stats['last_search'].isoformat()
+
+        return {
+            "success": True,
+            "data": stats
+        }
+    except Exception as e:
+        print(f"Dashboard Endpoint Error: {e}")
+        # Final safety fallback
+        return {
+            "success": True,
+            "data": {
+                "total_searches": 0,
+                "most_recommended": [],
+                "top_locations": [],
+                "last_search": None,
+                "recent_history": [],
+                "diversity_score": 0
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dashboard error: {str(e)}")
+
+@router.get("/user-history", tags=["Dashboard"])
+async def get_user_search_history(user_id: str = Query(...), limit: int = 10):
+    """
+    Get detailed search history for a specific user from MongoDB.
+    """
+    try:
+        history = mongo_manager.get_user_history(user_id, limit)
+        for entry in history:
+            if '_id' in entry: entry['_id'] = str(entry['_id'])
+            if 'timestamp' in entry: entry['timestamp'] = entry['timestamp'].isoformat()
+            
+        return {
+            "success": True,
+            "data": history
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"History error: {str(e)}")

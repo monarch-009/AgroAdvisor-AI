@@ -1,5 +1,7 @@
-import pandas as pd
 import numpy as np
+import sys
+import os
+from pathlib import Path
 # pyrefly: ignore [missing-import]
 import torch
 # pyrefly: ignore [missing-import]
@@ -12,21 +14,24 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 import pickle
 import time
-from pathlib import Path
-import os
-from soil_model import SoilNutrientNet
+# Add backend to path for imports
+BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(BACKEND_DIR))
+
+import pandas as pd
+from core.architectures.soil_model import SoilNutrientNet
 
 # Set roots
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(os.path.abspath(os.path.join(BACKEND_DIR, "..")))
 MODELS_DIR = PROJECT_ROOT / "models"
-DATA_PATH = PROJECT_ROOT / "datasets" / "soil-nutrient-analysis.csv"
+DATA_PATH = PROJECT_ROOT / "data" / "datasets" / "soil-nutrient-analysis.csv"
 
 ENCODERS_SAVE_PATH = MODELS_DIR / "soil_encoders.pkl"
 MODEL_SAVE_PATH = MODELS_DIR / "soil_nutrient_model.pth"
 VILLAGE_MAP_SAVE_PATH = MODELS_DIR / "village_mapping.pkl"
 
 # Backup folder for extra model copies
-BACKUP_DIR = PROJECT_ROOT / "datasets" / "trained_models_backup"
+BACKUP_DIR = PROJECT_ROOT / "data" / "datasets" / "trained_models_backup"
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 ML_MODEL_PATH = BACKUP_DIR / "soil_nutrient_model.pth"
 ML_ENCODERS_PATH = BACKUP_DIR / "soil_encoders.pkl"

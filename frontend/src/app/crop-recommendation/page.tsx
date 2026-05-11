@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { 
   Sprout, Send, Trophy, CheckCircle, AlertTriangle, Thermometer, 
   Droplets, FlaskConical, CloudRain, Atom, TestTubes, Beaker,
-  Search, RefreshCw, Activity, ArrowRight, MapPin, ChevronDown, X
+  Search, RefreshCw, Activity, ArrowRight, MapPin, ChevronDown, X,
+  Youtube, ExternalLink, PlayCircle, Sparkles
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -18,6 +19,7 @@ import {
   fetchSoilData,
   getWeather
 } from "../../services/api";
+import { useUser } from "@clerk/nextjs";
 import locationsRaw from "../../data/locations.json";
 import { tehsilData } from "../../data/tehsilMapping";
 
@@ -83,6 +85,7 @@ function CustomSelect({
 }
 
 export default function CropRecommendationPage() {
+  const { user } = useUser();
   const [activeTab, setActiveTab] = useState<"soil" | "location">("soil");
   
   const [form, setForm] = useState<CropInput>({
@@ -107,13 +110,13 @@ export default function CropRecommendationPage() {
   const [guideContent, setGuideContent] = useState<string | null>(null);
 
   const fields: { key: keyof CropInput; label: string; unit: string; min: number; max: number; icon: any; step?: number }[] = [
-    { key: "N", label: "Nitrogen (N)", unit: "kg/ha", min: 0, max: 200, icon: FlaskConical, step: 0.1 },
-    { key: "P", label: "Phosphorus (P)", unit: "kg/ha", min: 0, max: 200, icon: TestTubes, step: 0.1 },
-    { key: "K", label: "Potassium (K)", unit: "kg/ha", min: 0, max: 300, icon: Beaker, step: 0.1 },
+    { key: "N", label: "Nitrogen (N)", unit: "kg/ha", min: 0, max: 500, icon: FlaskConical, step: 0.1 },
+    { key: "P", label: "Phosphorus (P)", unit: "kg/ha", min: 0, max: 500, icon: TestTubes, step: 0.1 },
+    { key: "K", label: "Potassium (K)", unit: "kg/ha", min: 0, max: 500, icon: Beaker, step: 0.1 },
     { key: "ph", label: "Soil pH", unit: "pH", min: 0, max: 14, icon: Atom, step: 0.1 },
-    { key: "temperature", label: "Temperature", unit: "°C", min: -10, max: 55, icon: Thermometer, step: 0.1 },
+    { key: "temperature", label: "Temperature", unit: "°C", min: -20, max: 60, icon: Thermometer, step: 0.1 },
     { key: "humidity", label: "Humidity", unit: "%", min: 0, max: 100, icon: Droplets, step: 0.1 },
-    { key: "rainfall", label: "Rainfall", unit: "mm", min: 0, max: 2500, icon: CloudRain, step: 0.1 },
+    { key: "rainfall", label: "Rainfall", unit: "mm", min: 0, max: 3000, icon: CloudRain, step: 0.1 },
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -123,10 +126,10 @@ export default function CropRecommendationPage() {
     setResults(null);
     try {
       if (activeTab === "soil") {
-        const res = await predictCrop(form);
+        const res = await predictCrop({ ...form, user_id: user?.id || "guest" });
         setResults(res.recommendations);
       } else {
-        const res = await predictCropByLocation(locationForm);
+        const res = await predictCropByLocation({ ...locationForm, user_id: user?.id || "guest" });
         setResults(res.recommendations);
       }
     } catch (err: unknown) {
@@ -201,6 +204,26 @@ export default function CropRecommendationPage() {
     } finally {
       setIsGuideLoading(false);
     }
+  };
+
+  // Helper to parse YouTube search link
+  const getYTLink = (content: string | null, crop: string) => {
+    const baseQuery = `How to grow ${crop} in India complete scientific farming guide`;
+    if (!content) return `https://www.youtube.com/results?search_query=${encodeURIComponent(baseQuery)}`;
+    
+    const searchMatch = content.match(/YT_SEARCH:\s*\[?(.*?)\]?$/m);
+    const finalQuery = searchMatch ? searchMatch[1].replace(/[\[\]]/g, "") : baseQuery;
+    return `https://www.youtube.com/results?search_query=${encodeURIComponent(finalQuery)}`;
+  };
+
+  const cleanGuideContent = (content: string | null) => {
+    if (!content) return "";
+    return content
+      .replace(/YT_VIDEO_ID:\s*\[?.*?\]?/g, "")
+      .replace(/YT_SEARCH:\s*\[?.*?\]?/g, "")
+      // Also catch numbered points like "9. Video Tutorial" if Gemini outputs them
+      .replace(/\d+\.\s*Video Tutorial[\s\S]*$/i, "") 
+      .trim();
   };
 
   return (
@@ -310,11 +333,7 @@ export default function CropRecommendationPage() {
 
             {activeTab === "location" && (
               <div className="space-y-6 animate-in">
-                <div className="bg-amber-50/50 p-6 rounded-3xl border-2 border-amber-100/50 mb-6 text-center">
-                   <p className="text-xs font-bold text-amber-700 leading-relaxed">
-                     Get crop recommendations directly from historical agricultural data for your district without soil testing.
-                   </p>
-                </div>
+
                 <div className="grid grid-cols-1 gap-4">
                   <div className="bg-gray-50/50 p-4 rounded-2xl border-2 border-transparent focus-within:border-green-500 focus-within:bg-white transition-all group relative">
                     <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-wider mb-2">
@@ -461,7 +480,7 @@ export default function CropRecommendationPage() {
       {/* ── AI Growth Guide Modal ────────────────────────────── */}
       {showGuide && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2rem] w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in duration-300">
+          <div className="bg-white rounded-[2rem] w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in duration-300">
             <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-green-50/50">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-green-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-green-200">
@@ -469,7 +488,7 @@ export default function CropRecommendationPage() {
                 </div>
                 <div>
                   <h3 className="text-xl font-black text-gray-900">AI Growth Guide</h3>
-                  <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">Powered by Gemini 1.5 Pro</p>
+                  <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">Powered by Gemini 2.0 Flash</p>
                 </div>
               </div>
               <button 
@@ -480,44 +499,88 @@ export default function CropRecommendationPage() {
               </button>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-8 lg:p-12 scrollbar-hide">
+            <div className="flex-1 overflow-y-auto p-8 lg:p-12 scrollbar-hide space-y-10">
+              
               {isGuideLoading ? (
                 <div className="flex flex-col items-center justify-center py-24 text-center">
-                  <div className="w-20 h-20 border-4 border-green-100 border-t-green-600 rounded-full animate-spin mb-8" />
-                  <h4 className="text-lg font-black text-gray-900 uppercase tracking-widest mb-2">Analyzing Agronomy...</h4>
-                  <p className="text-sm text-gray-400 font-medium">Gemini AI is crafting a custom cultivation strategy for your land</p>
+                  <div className="w-16 h-16 border-4 border-green-100 border-t-green-600 rounded-full animate-spin mb-6" />
+                  <h4 className="text-base font-black text-gray-900 uppercase tracking-widest mb-1">Analyzing Agronomy...</h4>
+                  <p className="text-xs text-gray-400 font-medium">Gemini AI is crafting a custom cultivation strategy</p>
                 </div>
               ) : (
-                <div className="markdown-content max-w-none">
-                  <style jsx global>{`
-                    .markdown-content h1 { font-size: 2.25rem; margin-bottom: 1.5rem; font-weight: 900; color: #111827; line-height: 1.2; }
-                    .markdown-content h2 { font-size: 1.75rem; margin-top: 2.5rem; margin-bottom: 1.25rem; font-weight: 900; color: #111827; border-left: 4px solid #16a34a; padding-left: 1rem; }
-                    .markdown-content h3 { font-size: 1.25rem; margin-top: 1.5rem; margin-bottom: 0.75rem; font-weight: 900; color: #111827; }
-                    .markdown-content p { margin-bottom: 1.25rem; line-height: 1.8; color: #374151; font-size: 1rem; }
-                    .markdown-content ul, .markdown-content ol { margin-bottom: 1.5rem; padding-left: 1.5rem; list-style-type: disc; }
-                    .markdown-content li { margin-bottom: 0.75rem; color: #374151; line-height: 1.6; }
-                    .markdown-content strong { color: #111827; font-weight: 800; }
-                    
-                    /* Table Styling */
-                    .markdown-content table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 2rem 0; border: 2px solid #f3f4f6; rounded: 1rem; overflow: hidden; border-radius: 1rem; }
-                    .markdown-content th { background-color: #f9fafb; color: #111827; font-weight: 800; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; padding: 1rem; text-align: left; border-bottom: 2px solid #f3f4f6; }
-                    .markdown-content td { padding: 1rem; border-bottom: 1px solid #f3f4f6; color: #4b5563; font-size: 0.9375rem; line-height: 1.5; vertical-align: top; }
-                    .markdown-content tr:last-child td { border-bottom: none; }
-                    .markdown-content tr:hover td { background-color: #fcfdfc; }
-                    
-                    /* Blockquote / Pro-tip Styling */
-                    .markdown-content blockquote { margin: 2rem 0; padding: 1.5rem; background-color: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 0 1rem 1rem 0; font-style: italic; color: #166534; }
-                    .markdown-content blockquote p { margin-bottom: 0; font-weight: 600; }
-                  `}</style>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{guideContent || ""}</ReactMarkdown>
-                </div>
+                <>
+                  <div className="markdown-content max-w-none prose prose-green prose-headings:font-black prose-headings:tracking-tight prose-p:text-gray-600 prose-li:text-gray-600">
+                    <style jsx global>{`
+                      .markdown-content h1 { font-size: 2.25rem; margin-bottom: 1.5rem; font-weight: 900; color: #111827; line-height: 1.2; }
+                      .markdown-content h2 { font-size: 1.75rem; margin-top: 2.5rem; margin-bottom: 1.25rem; font-weight: 900; color: #111827; border-left: 4px solid #16a34a; padding-left: 1rem; }
+                      .markdown-content h3 { font-size: 1.25rem; margin-top: 1.5rem; margin-bottom: 0.75rem; font-weight: 900; color: #111827; }
+                      .markdown-content p { margin-bottom: 1.25rem; line-height: 1.8; color: #374151; font-size: 1rem; }
+                      .markdown-content ul, .markdown-content ol { margin-bottom: 1.5rem; padding-left: 1.5rem; list-style-type: disc; }
+                      .markdown-content li { margin-bottom: 0.75rem; color: #374151; line-height: 1.6; }
+                      .markdown-content strong { color: #111827; font-weight: 800; }
+                      
+                      .markdown-content table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 2rem 0; border: 2px solid #f3f4f6; border-radius: 1rem; overflow: hidden; }
+                      .markdown-content th { background-color: #f9fafb; color: #111827; font-weight: 800; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; padding: 1rem; text-align: left; border-bottom: 2px solid #f3f4f6; }
+                      .markdown-content td { padding: 1rem; border-bottom: 1px solid #f3f4f6; color: #4b5563; font-size: 0.9375rem; line-height: 1.5; vertical-align: top; }
+                      .markdown-content tr:last-child td { border-bottom: none; }
+                      .markdown-content tr:hover td { background-color: #fcfdfc; }
+                      
+                      .markdown-content blockquote { margin: 2rem 0; padding: 1.5rem; background-color: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 0 1rem 1rem 0; font-style: italic; color: #166534; }
+                      .markdown-content blockquote p { margin-bottom: 0; font-weight: 600; }
+                    `}</style>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{cleanGuideContent(guideContent)}</ReactMarkdown>
+                  </div>
+
+                  {/* YouTube Video Learning Hub - MOVED TO BOTTOM */}
+                  <div className="relative group pt-12 border-t border-gray-100">
+                    <div className="absolute -inset-1 bg-gradient-to-r from-red-600 to-rose-600 rounded-[2rem] blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+                    <div className="relative bg-white border border-red-50 rounded-[2.5rem] p-8 flex flex-col md:flex-row items-center gap-10 shadow-sm">
+                      <div className="w-full md:w-1/3 aspect-video bg-gray-100 rounded-3xl relative overflow-hidden group/yt cursor-pointer shadow-inner">
+                        <img 
+                          src={`https://img.youtube.com/vi/f8f-yF1o6f8/0.jpg`}
+                          alt="Tutorial"
+                          className="w-full h-full object-cover opacity-60 grayscale group-hover/yt:grayscale-0 group-hover/yt:scale-110 transition-all duration-700"
+                        />
+                        <div className="absolute inset-0 bg-red-600/10 flex items-center justify-center">
+                          <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl shadow-red-200 group-hover/yt:scale-110 transition-transform">
+                            <PlayCircle className="w-9 h-9 text-white fill-current" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex-grow space-y-4">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 text-red-600 text-[10px] font-black uppercase tracking-wider">
+                          <Youtube className="w-3.5 h-3.5" /> Video Advisory
+                        </div>
+                        <h3 className="text-2xl font-black text-gray-900 leading-tight">
+                          Visual Guide for {results?.[0]?.crop || "Selected Crop"}
+                        </h3>
+                        <p className="text-gray-500 text-sm leading-relaxed font-medium">
+                          Watch the complete cultivation masterclass on YouTube to see modern farming techniques in action.
+                        </p>
+                        <a 
+                          href={getYTLink(guideContent, results?.[0]?.crop || "")}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-3 bg-red-600 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-700 transition-all shadow-xl shadow-red-100 group/link"
+                        >
+                          Watch Tutorial
+                          <ExternalLink className="w-4 h-4 group-hover/link:translate-x-1 group-hover/link:-translate-y-1 transition-transform" />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
             
             <div className="p-8 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-center sm:text-left">
-                  This guide is AI-generated and should be verified with local experts.
-                </p>
+                <div className="flex items-center gap-3">
+                  <Sparkles className="w-5 h-5 text-green-600 animate-pulse" />
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-center sm:text-left">
+                    Verified for {results?.[0]?.crop || "Selected Crop"} • Growth Score: {(results?.[0]?.confidence * 100).toFixed(0)}%
+                  </p>
+                </div>
                 <button 
                   onClick={() => { setShowGuide(false); setGuideContent(null); }}
                   className="w-full sm:w-auto px-10 py-4 bg-gray-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-800 transition-all shadow-xl shadow-gray-200 active:scale-[0.98]"
@@ -531,4 +594,3 @@ export default function CropRecommendationPage() {
     </div>
   );
 }
-
