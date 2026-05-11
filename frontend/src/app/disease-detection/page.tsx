@@ -223,7 +223,7 @@ export default function DiseaseDetectionPage() {
                <h4 className="text-lg font-black text-gray-900">Causes</h4>
              </div>
              <ul className="space-y-3">
-               {result.detail.causes.map((c, i) => (
+               {result.detail.causes?.map((c, i) => (
                  <li key={i} className="flex items-start gap-2 text-xs font-bold text-gray-600">
                     <div className="w-1.5 h-1.5 bg-rose-400 rounded-full mt-1.5 shrink-0" /> {c}
                  </li>
@@ -239,7 +239,7 @@ export default function DiseaseDetectionPage() {
                <h4 className="text-lg font-black text-gray-900">Prevention</h4>
              </div>
              <ul className="space-y-3">
-               {result.detail.prevention.map((p, i) => (
+               {result.detail.prevention?.map((p, i) => (
                  <li key={i} className="flex items-start gap-2 text-xs font-bold text-gray-600">
                     <div className="w-1.5 h-1.5 bg-green-400 rounded-full mt-1.5 shrink-0" /> {p}
                  </li>
