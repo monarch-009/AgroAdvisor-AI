@@ -28,15 +28,16 @@ data/datasets/
 plant_dataset/
 *.zip
 *.tar.gz
+# Keep CSVs out except for essential ones
 *.csv
 *.db
 *.sqlite3
 
 # Models
-# We keep the trained weights in the repo if they are under 100MB
-# If you have larger models, consider Git LFS
-models/
-!models/.gitkeep
+# We keep the trained weights in the repo
+!models/
+!models/**
+!models/region_analysis/stats_cache.pkl
 
 # Project specific
 backend/venv/
