@@ -578,7 +578,7 @@ export default function CropRecommendationPage() {
                 <div className="flex items-center gap-3">
                   <Sparkles className="w-5 h-5 text-green-600 animate-pulse" />
                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-center sm:text-left">
-                    Verified for {results?.[0]?.crop || "Selected Crop"} • Growth Score: {(results?.[0]?.confidence * 100).toFixed(0)}%
+                    Verified for {results?.[0]?.crop || "Selected Crop"} • Growth Score: {((results?.[0]?.confidence || 0) * 100).toFixed(0)}%
                   </p>
                 </div>
                 <button 
