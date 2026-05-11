@@ -23,17 +23,18 @@ class RegionAnalysisService:
 
     def initialize_system(self, run_ml: bool = False):
         """Initializes the data, calculates stats, and optionally trains models."""
+        if self.is_initialized:
+            return
+            
         logger.info("Initializing Region Analysis System...")
         
         # Resolve absolute path to project root
         project_root = Path(__file__).resolve().parent.parent.parent
-        cache_path = project_root / "models" / "region_analysis" / "stats_cache.pkl"
+        cache_path = project_root / "models" / "region_analysis" / "stats_cache.csv"
         
         if cache_path.exists() and not run_ml:
-            logger.info("Loading statistics from cache...")
-            import pickle
-            with open(cache_path, "rb") as f:
-                self.processor.stats_df = pickle.load(f)
+            logger.info("Loading statistics from CSV cache...")
+            self.processor.stats_df = pd.read_csv(cache_path)
             self.is_initialized = True
             logger.info("System Initialized from cache.")
             return
@@ -42,11 +43,9 @@ class RegionAnalysisService:
         df = self.processor.engineer_features()
         self.processor.calculate_ranking_scores()
         
-        # Save cache
+        # Save cache as CSV for better compatibility and memory
         cache_path.parent.mkdir(parents=True, exist_ok=True)
-        import pickle
-        with open(cache_path, "wb") as f:
-            pickle.dump(self.processor.stats_df, f)
+        self.processor.stats_df.to_csv(cache_path, index=False)
         logger.info(f"Statistics cached to {cache_path}")
         
         # 2. ML Training (Optional)

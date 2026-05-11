@@ -37,7 +37,7 @@ plant_dataset/
 # We keep the trained weights in the repo
 !models/
 !models/**
-!models/region_analysis/stats_cache.pkl
+!models/region_analysis/stats_cache.csv
 
 # Project specific
 backend/venv/
