@@ -116,7 +116,7 @@ export default function Navbar() {
                 {openMenu === item.label && (
                   <div className="animate-dropdown absolute top-full left-0 mt-2 w-60 bg-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.12)] border border-gray-100 p-2 z-200">
 
-                    {item.children.map((child) => (
+                    {item.children?.map((child) => (
                       <Link
                         key={child.href}
                         href={child.href}
