@@ -30,6 +30,7 @@ class RegionModelManager:
         self.best_model = None
         self.encoders = {}
         self.metrics = {}
+        self.is_loaded = False
 
     def prepare_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
         """Encodes categorical data and splits features/target."""
@@ -101,3 +102,58 @@ class RegionModelManager:
             json.dump(serializable_metrics, f, indent=4)
 
         logger.info(f"Model assets saved to {self.models_dir}")
+
+    def load_assets(self) -> bool:
+        """Loads the best model and encoders from disk."""
+        model_path = self.models_dir / "best_yield_model.pkl"
+        encoder_path = self.models_dir / "encoders.pkl"
+        
+        if not (model_path.exists() and encoder_path.exists()):
+            logger.warning("Model assets not found on disk.")
+            return False
+            
+        try:
+            with open(model_path, "rb") as f:
+                self.best_model = pickle.load(f)
+            with open(encoder_path, "rb") as f:
+                self.encoders = pickle.load(f)
+            self.is_loaded = True
+            logger.info("Model assets loaded successfully.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to load model assets: {e}")
+            return False
+
+    def predict(self, state: str, district: str, season: str, crop: str, area: float) -> float:
+        """Predicts yield using the best model."""
+        if not self.is_loaded:
+            if not self.load_assets():
+                return 0.0
+                
+        try:
+            # Prepare input data
+            input_df = pd.DataFrame([{
+                'state_name': state,
+                'district_name': district,
+                'season': season,
+                'crop_name': crop,
+                'area': area
+            }])
+            
+            # Encode categorical columns
+            for col in ['state_name', 'district_name', 'season', 'crop_name']:
+                if col in self.encoders:
+                    le = self.encoders[col]
+                    # Handle unseen labels by mapping them to the most common one or a fallback
+                    # For simplicity, we'll try-except or use a safe transform
+                    try:
+                        input_df[col] = le.transform(input_df[col].astype(str))
+                    except ValueError:
+                        # Fallback to first label if unseen (not ideal but avoids crash)
+                        input_df[col] = le.transform([le.classes_[0]])
+            
+            prediction = self.best_model.predict(input_df)[0]
+            return float(prediction)
+        except Exception as e:
+            logger.error(f"Prediction error: {e}")
+            return 0.0

@@ -20,7 +20,8 @@ import {
   Download,
   Youtube,
   ExternalLink,
-  PlayCircle
+  PlayCircle,
+  Zap
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import locationsData from "@/data/locations.json";
@@ -29,6 +30,7 @@ interface Recommendation {
   crop: string;
   score: number;
   avg_yield: number;
+  predicted_yield?: number;
   stability: string;
   trend: string;
   reason: string;
@@ -443,6 +445,16 @@ export default function RegionalAnalysisPage() {
                     </div>
                     <span className="text-xl font-black text-gray-900">{rec.avg_yield} <span className="text-[10px] font-black text-gray-400">T/Ha</span></span>
                   </div>
+
+                  {rec.predicted_yield && (
+                    <div className="flex items-center justify-between p-5 bg-green-50 rounded-[24px] border border-green-100 group-hover:bg-white transition-colors">
+                      <div className="flex items-center gap-3">
+                        <Zap className="w-4 h-4 text-green-600" />
+                        <span className="text-[10px] font-black text-green-600 uppercase tracking-widest">AI Forecast</span>
+                      </div>
+                      <span className="text-xl font-black text-green-700">{rec.predicted_yield} <span className="text-[10px] font-black text-green-600">T/Ha</span></span>
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between p-5 bg-gray-50 rounded-[24px] border border-gray-100 group-hover:bg-white transition-colors">
                     <div className="flex items-center gap-3">

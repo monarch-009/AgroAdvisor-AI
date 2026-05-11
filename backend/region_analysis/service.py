@@ -81,10 +81,20 @@ class RegionAnalysisService:
             # Explainable AI logic
             reason = self._generate_reason(row)
             
+            # ML Yield Prediction
+            predicted_yield = self.model_manager.predict(
+                state=state,
+                district=district,
+                season=season,
+                crop=row['crop_name'],
+                area=float(row['area']) if 'area' in row else 1.0
+            )
+
             recommendations.append({
                 "crop": row['crop_name'],
                 "score": round(row['recommendation_score'], 2),
                 "avg_yield": round(row['avg_yield'], 3),
+                "predicted_yield": round(predicted_yield, 3) if predicted_yield > 0 else None,
                 "stability": "High" if row['stability_score'] > 0.7 else "Moderate" if row['stability_score'] > 0.4 else "Low",
                 "trend": "Increasing" if row['production_growth'] > 0.05 else "Stable" if row['production_growth'] > -0.05 else "Declining",
                 "reason": reason
