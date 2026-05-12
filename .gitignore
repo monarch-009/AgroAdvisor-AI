@@ -30,6 +30,7 @@ plant_dataset/
 *.tar.gz
 # Keep CSVs out except for essential ones
 *.csv
+!data/datasets/crop-wise-area-production-yield.csv
 *.db
 *.sqlite3
 
