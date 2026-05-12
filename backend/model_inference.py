@@ -3,6 +3,7 @@ import sys
 import json
 import pickle
 import numpy as np
+import pandas as pd
 from pathlib import Path
 
 # -- Paths --
@@ -79,10 +80,11 @@ def predict_crop(N, P, K, temperature, humidity, ph, rainfall, top_k=5):
     features["temp_humidity_index"] = (0.8 * temperature) + ((humidity / 100) * (temperature - 14.4)) + 46.4
     features["rainfall_category"] = 0 if rainfall <= 50 else (1 if rainfall <= 100 else (2 if rainfall <= 200 else (3 if rainfall <= 400 else 4)))
     features["ph_category"] = 0 if ph <= 5.5 else (1 if ph <= 6.5 else (2 if ph <= 7.5 else 3))
-    feature_vector = np.array([[features.get(f, 0) for f in feature_names]])
+    # Create a DataFrame with feature names to avoid sklearn warnings
+    feature_df = pd.DataFrame([features], columns=feature_names)
     
     if hasattr(model, "predict_proba"):
-        probas = model.predict_proba(feature_vector)[0]
+        probas = model.predict_proba(feature_df)[0]
         top_indices = np.argsort(probas)[::-1][:top_k]
         
         results = []
@@ -99,7 +101,7 @@ def predict_crop(N, P, K, temperature, humidity, ph, rainfall, top_k=5):
             })
         return results
     else:
-        pred = int(model.predict(feature_vector)[0])
+        pred = int(model.predict(feature_df)[0])
         return [{"crop": label_map.get(pred, f"Unknown_{pred}"), "confidence": 0.98}]
 
 _location_model_v2 = None

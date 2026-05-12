@@ -121,6 +121,7 @@ async def predict_crop_endpoint(data: CropInput, db: Session = Depends(get_db)):
 
         # Log to database
         prediction = CropPrediction(
+            user_id=data.user_id,
             nitrogen=data.N,
             phosphorus=data.P,
             potassium=data.K,
@@ -135,6 +136,7 @@ async def predict_crop_endpoint(data: CropInput, db: Session = Depends(get_db)):
         db.add(prediction)
 
         advisory = AdvisoryLog(
+            user_id=data.user_id,
             action_type="crop_prediction",
             request_summary=f"N={data.N}, P={data.P}, K={data.K}, temp={data.temperature}",
             response_summary=f"Recommended: {results[0]['crop']}" if results else "No result",
@@ -168,6 +170,7 @@ async def predict_crop_location_endpoint(data: LocationCropInput, db: Session = 
         )
 
         advisory = AdvisoryLog(
+            user_id=data.user_id,
             action_type="crop_prediction_location",
             request_summary=f"State={data.state}, District={data.district}, Tehsil={data.tehsil}",
             response_summary=f"Recommended: {results[0]['crop']}" if results else "No result",
